@@ -76,3 +76,4 @@ _[Ss]cripts
 
 appsettings.json
 appsettings.Development.json
+arduino_secrets.h
