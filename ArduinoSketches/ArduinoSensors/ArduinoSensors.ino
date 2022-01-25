@@ -27,7 +27,7 @@ char ssid[] = WIFI_SSID_NAME;
 char pass[] = WIFI_PASSWORD;
 
 //HTTPClient connection
-const char serverName[] = "192.168.0.77";
+const char serverName[] = SERVER_ADDRESS;
 WiFiClient wifi;
 HttpClient client = HttpClient( wifi, serverName);
 int status = WL_IDLE_STATUS;
