@@ -1,4 +1,4 @@
-// ArduinoHttpClient - Version: Latest 
+#include <RTCZero.h>
 #include <ArduinoHttpClient.h>
 #include <WiFiNINA.h>
 #include "arduino_secrets.h"
@@ -6,7 +6,6 @@
 #include <DHT.h>
 #include <DHT_U.h>
 #include "Adafruit_seesaw.h"
-
 
 //Soil sensor global variables
 Adafruit_seesaw soilSensor1; //First soil sensor (0x36)
@@ -18,6 +17,8 @@ Adafruit_seesaw soilSensor3; //Third soil sensor (0x38)
 #define DHTTYPE DHT11 //Type of DHT sensor
 DHT_Unified dht(DHTPIN, DHTTYPE); //Temperature & Humidity sensor
 DHT dht2(DHTPIN, DHTTYPE);
+sensors_event_t event1;
+sensors_event_t event2;
 
 //Light sensor
 int photocellPin = 3; //the cell and 10K pulldown are connected to a3
@@ -32,19 +33,14 @@ WiFiClient wifi;
 HttpClient client = HttpClient( wifi, serverName);
 int status = WL_IDLE_STATUS;
 
-//variables to convert readings to string
-  String tempString = "";
-  String humString = "";
-  String lightString = "";
-  String sensor1String = "";
-  String sensor2String = "";
-  String sensor3String = "";
+RTCZero rtc;
 
 void setup()
 {
   Serial.begin(9600);
   delay(1500); //Allows the console to open before outputing
- 
+
+
   //Wait for the card to find a network
   while ( status != WL_CONNECTED )
   {
@@ -59,16 +55,16 @@ void setup()
   IPAddress ip = WiFi.localIP();
   Serial.print( "IP Address: " );
   Serial.println( ip );
-  
+
   //Starts soil sensor 1
-  if (soilSensor1.begin(0x36)) 
+  if (soilSensor1.begin(0x36))
   {
     Serial.println("Soil sensor 1 started!");
   }
   else
   {
     Serial.println("ERROR: SOIL SENSOR 1 NOT FOUND!");
-    while(1);
+    while (1);
   }
 
   //Starts soil sensor 2
@@ -90,15 +86,46 @@ void setup()
   {
     Serial.println("ERROR: SOIL SENSOR 3 NOT FOUND!");
   }
-  
+
   //Temperature sensor setup
   dht.begin();
   sensor_t sensor;
+
+  //Waiting 10 seconds to make sure connection is established
+  delay(10000);
+
+  //Setting up time
+  rtc.begin();
+  unsigned long epoch = WiFi.getTime();
+  epoch += -18000;
+  rtc.setEpoch(epoch);
+  
+  PrintTime();
+
+  //Setup alarm to trigger every hour
+  rtc.setAlarmTime(0, 0, 0);
+  rtc.enableAlarm(rtc.MATCH_MMSS);
+  rtc.attachInterrupt(SensorReading);
 }
 
-
-void loop() 
+void loop()
 {
+  //Prints temperature & humidity sensor read every five minutes
+  dht.temperature().getEvent(&event1);
+  dht.humidity().getEvent(&event2);
+  delay(300000);
+}
+
+void SensorReading()
+{
+  //variables to convert readings to string
+  String tempString = "";
+  String humString = "";
+  String lightString = "";
+  String sensor1String = "";
+  String sensor2String = "";
+  String sensor3String = "";
+
   //Take reading from soil sensor
   uint16_t capread1 = soilSensor1.touchRead(0);
   uint16_t capread2 = soilSensor2.touchRead(0);
@@ -108,24 +135,12 @@ void loop()
   Serial.print("Sensor 1: "); Serial.println(capread1);
   Serial.print("Sensor 2: "); Serial.println(capread2);
   Serial.print("Sensor 3: "); Serial.println(capread3);
- 
-  //Take temperature & humidity sensor read
-  sensors_event_t event1;
-  sensors_event_t event2;
-  dht.temperature().getEvent(&event1);
-  dht.humidity().getEvent(&event2);
-
-  //Prints temperature & humidity sensor read
-  Serial.print(F("Temperature: "));
-  Serial.println(event1.temperature);
-  Serial.print(F("Humidity: "));
-  Serial.println(event2.relative_humidity);
-
+  
   //Reads and print the light sensor
-  uint16_t lightread = analogRead(photocellPin);   
+  uint16_t lightread = analogRead(photocellPin);
   Serial.print("Light: ");
   Serial.println(lightread);
-  
+
   //Converts the datas to String
   tempString.concat(event1.temperature);
   humString.concat(event2.relative_humidity);
@@ -149,8 +164,20 @@ void loop()
   Serial.print( "Response: " );
   Serial.println( response );
   client.stop();
+}
 
-  //loop every hours
-  Serial.println("Next reading in 1 hour");
-  delay(60UL * 60UL * 1000UL);
+void PrintTime()
+{
+  Serial.print(rtc.getDay());
+  Serial.print("/");
+  Serial.print(rtc.getMonth());
+  Serial.print("/");
+  Serial.print(rtc.getYear());
+  Serial.print("\t");
+
+  Serial.print(rtc.getHours());
+  Serial.print(":");
+  Serial.print(rtc.getMinutes());
+  Serial.print(":");
+  Serial.println(rtc.getSeconds());
 }
